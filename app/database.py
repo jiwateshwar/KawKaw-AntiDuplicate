@@ -65,7 +65,7 @@ class Image(Base):
     camera_model: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     lens_model: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_taken: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    shutter_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    shutter_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     image_unique_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     f_number: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     exposure_time: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -121,6 +121,20 @@ async def create_all_tables() -> None:
                 await conn.execute(text(
                     "CREATE INDEX IF NOT EXISTS idx_images_exif_gin ON images USING GIN (exif_json)"
                 ))
+                # Migration: widen shutter_count from INTEGER to BIGINT if needed
+                # (Canon shutter counts can exceed 2^31 on high-cycle bodies)
+                await conn.execute(text("""
+                    DO $$ BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name = 'images'
+                              AND column_name = 'shutter_count'
+                              AND data_type = 'integer'
+                        ) THEN
+                            ALTER TABLE images ALTER COLUMN shutter_count TYPE BIGINT;
+                        END IF;
+                    END $$;
+                """))
             return
         except Exception as e:
             if attempt == 9:

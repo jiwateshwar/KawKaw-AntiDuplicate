@@ -123,7 +123,8 @@ def _extract_exif_with_exifread(file_path: str) -> dict:
     )
 
     shutter_count = None
-    sc_tag = get("MakerNote ShutterCount") or get("EXIF BodySerialNumber")
+    # BodySerialNumber is a camera serial, not a shutter count — never use it here
+    sc_tag = get("MakerNote ShutterCount")
     if sc_tag is not None:
         try:
             raw_sc = _to_json_safe(sc_tag)

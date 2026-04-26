@@ -27,7 +27,7 @@ def _to_json_safe(value):
         return value
     if isinstance(value, bytes):
         try:
-            return value.decode("utf-8", errors="replace")
+            return value.decode("utf-8", errors="replace").replace("\x00", "")
         except Exception:
             return repr(value)
     if isinstance(value, (list, tuple)):
@@ -103,12 +103,25 @@ def _parse_datetime(tag_value) -> datetime | None:
     return None
 
 
+# Tags that contain raw binary blobs — excluded from JSONB storage
+_BINARY_TAG_FRAGMENTS = (
+    "JPEGThumbnail", "TIFFThumbnail", "PrintIM", "MakerNote",
+    "UserComment", "FlashPixVersion", "ExifVersion",
+)
+
+
+def _is_binary_tag(key: str) -> bool:
+    return any(frag in key for frag in _BINARY_TAG_FRAGMENTS)
+
+
 def _extract_exif_with_exifread(file_path: str) -> dict:
     with open(file_path, "rb") as f:
         tags = exifread.process_file(f, details=True, stop_tag="UNDEF")
 
     raw_tags: dict = {}
     for key, val in tags.items():
+        if _is_binary_tag(key):
+            continue
         raw_tags[key] = _to_json_safe(val)
 
     def get(key):
@@ -581,7 +594,7 @@ def _run_scan_body(
             "iso": exif.get("iso"),
             "gps_lat": exif.get("gps_lat"),
             "gps_lon": exif.get("gps_lon"),
-            "exif_json": json.dumps(exif.get("raw_tags") or {}),
+            "exif_json": json.dumps(exif.get("raw_tags") or {}).replace("\x00", "").replace("\\u0000", ""),
         }
 
         if known_entry:

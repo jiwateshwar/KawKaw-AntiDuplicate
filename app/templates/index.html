@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KawKaw Anti Duplicate</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --sidebar-w: 220px; }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .sidebar-link { @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors cursor-pointer text-sm font-medium; }
+  .sidebar-link.active { @apply bg-indigo-600 text-white; }
+  .stat-card { @apply bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-col gap-1; }
+  .btn-primary { @apply bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-secondary { @apply bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-medium px-4 py-2 rounded-lg transition-colors; }
+  .btn-danger { @apply bg-red-700 hover:bg-red-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors; }
+  .btn-warn { @apply bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors; }
+  .btn-sm { @apply text-xs px-2.5 py-1.5; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium; }
+  .badge-blue { @apply bg-blue-900 text-blue-300; }
+  .badge-amber { @apply bg-amber-900 text-amber-300; }
+  .badge-green { @apply bg-green-900 text-green-300; }
+  .badge-red { @apply bg-red-900 text-red-300; }
+  .badge-gray { @apply bg-gray-700 text-gray-300; }
+  .input-field { @apply bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 placeholder-gray-500; }
+  .table-row { @apply border-b border-gray-800 hover:bg-gray-900 transition-colors; }
+  .log-line { font-family: monospace; font-size: 0.75rem; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .group-card { @apply bg-gray-900 border border-gray-800 rounded-xl mb-4 overflow-hidden; }
+  .file-row-dup { @apply flex items-center gap-3 px-4 py-3 border-t border-gray-800 hover:bg-gray-800 transition-colors; }
+  .pagination-btn { @apply px-3 py-1.5 rounded-lg text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed; }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 h-full">
+
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-56 bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0">
+    <div class="p-4 flex items-center gap-3 border-b border-gray-800">
+      <img src="/static/icon.png" class="w-9 h-9 rounded-lg" alt="KawKaw" onerror="this.style.display='none'" />
+      <div>
+        <div class="text-white font-bold text-sm leading-tight">KawKaw</div>
+        <div class="text-gray-500 text-xs">Anti Duplicate</div>
+      </div>
+    </div>
+    <nav class="flex-1 p-2 space-y-0.5">
+      <div class="sidebar-link active" onclick="nav('dashboard')" id="nav-dashboard">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        Dashboard
+      </div>
+      <div class="sidebar-link" onclick="nav('duplicates')" id="nav-duplicates">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        Duplicate Groups
+      </div>
+      <div class="sidebar-link" onclick="nav('files')" id="nav-files">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        All Files
+      </div>
+      <div class="sidebar-link" onclick="nav('history')" id="nav-history">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Scan History
+      </div>
+      <div class="sidebar-link" onclick="nav('settings')" id="nav-settings">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Settings
+      </div>
+    </nav>
+    <div class="p-3 border-t border-gray-800">
+      <div id="scan-status-badge" class="text-xs text-gray-500 flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-gray-600" id="scan-dot"></div>
+        <span id="scan-status-text">Idle</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="flex-1 overflow-auto bg-gray-950">
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-4 right-4 z-50 hidden">
+      <div id="toast-inner" class="px-4 py-3 rounded-xl text-sm font-medium shadow-xl"></div>
+    </div>
+
+    <!-- ── Dashboard ── -->
+    <div id="page-dashboard" class="page active p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-xl font-bold text-white">Dashboard</h1>
+          <p class="text-gray-500 text-sm mt-0.5">Photo catalog overview</p>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn-secondary" onclick="startDeletedCheck()" id="btn-deleted-check">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Check Deleted
+          </button>
+          <button class="btn-primary" onclick="startScan()" id="btn-scan-now">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            Scan Now
+          </button>
+        </div>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6" id="stats-grid">
+        <div class="stat-card">
+          <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Total Files</div>
+          <div class="text-3xl font-bold text-white" id="stat-total">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Duplicate Groups</div>
+          <div class="text-3xl font-bold text-amber-400" id="stat-dupes">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Marked</div>
+          <div class="text-3xl font-bold text-indigo-400" id="stat-marked">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-gray-400 text-xs font-medium uppercase tracking-wider">Deleted / Trashed</div>
+          <div class="text-3xl font-bold text-red-400" id="stat-deleted">—</div>
+        </div>
+      </div>
+
+      <!-- Last scan info -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4" id="last-scan-info">
+        <div class="text-xs text-gray-500">Last scan: <span id="last-scan-time" class="text-gray-300">Never</span></div>
+      </div>
+
+      <!-- Live scan log -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <span class="text-sm font-medium text-gray-300">Scan Log</span>
+          <button class="text-xs text-gray-500 hover:text-gray-300" onclick="clearLog()">Clear</button>
+        </div>
+        <div id="scan-log" class="p-3 h-48 overflow-y-auto font-mono text-xs text-green-400 bg-gray-950 space-y-0.5">
+          <div class="text-gray-600">Waiting for scan...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Duplicate Groups ── -->
+    <div id="page-duplicates" class="page p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-xl font-bold text-white">Duplicate Groups</h1>
+          <p class="text-gray-500 text-sm mt-0.5">Files with identical fingerprints</p>
+        </div>
+        <a href="/api/export/duplicates.csv" class="btn-secondary" download>
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Export CSV
+        </a>
+      </div>
+      <div id="dup-groups-list">
+        <div class="text-gray-500 text-sm">Loading...</div>
+      </div>
+      <div class="flex items-center gap-3 mt-4" id="dup-pagination"></div>
+    </div>
+
+    <!-- ── All Files ── -->
+    <div id="page-files" class="page p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-xl font-bold text-white">All Files</h1>
+        <span id="files-count" class="text-sm text-gray-500"></span>
+      </div>
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <input type="text" id="filter-search" placeholder="Search filename or path..." class="input-field w-56" oninput="debounceLoadFiles()" />
+        <select id="filter-camera" class="input-field" onchange="loadFiles()">
+          <option value="">All cameras</option>
+        </select>
+        <select id="filter-ext" class="input-field" onchange="loadFiles()">
+          <option value="">All types</option>
+        </select>
+        <input type="date" id="filter-date-from" class="input-field" onchange="loadFiles()" title="Date from" />
+        <input type="date" id="filter-date-to" class="input-field" onchange="loadFiles()" title="Date to" />
+        <label class="flex items-center gap-1.5 text-sm text-gray-400 cursor-pointer">
+          <input type="checkbox" id="filter-marked" onchange="loadFiles()" class="rounded" />
+          Marked only
+        </label>
+        <label class="flex items-center gap-1.5 text-sm text-gray-400 cursor-pointer">
+          <input type="checkbox" id="filter-deleted" onchange="loadFiles()" class="rounded" />
+          Include deleted
+        </label>
+        <button class="btn-secondary btn-sm" onclick="clearFilters()">Reset</button>
+      </div>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wider">
+              <th class="text-left px-4 py-3">File</th>
+              <th class="text-left px-4 py-3">Camera</th>
+              <th class="text-left px-4 py-3">Date Taken</th>
+              <th class="text-left px-4 py-3">Size</th>
+              <th class="text-left px-4 py-3">Method</th>
+              <th class="text-left px-4 py-3">Status</th>
+              <th class="text-left px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="files-tbody">
+            <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="flex items-center gap-3 mt-4" id="files-pagination"></div>
+    </div>
+
+    <!-- ── Scan History ── -->
+    <div id="page-history" class="page p-6">
+      <h1 class="text-xl font-bold text-white mb-6">Scan History</h1>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wider">
+              <th class="text-left px-4 py-3">Started</th>
+              <th class="text-left px-4 py-3">Type</th>
+              <th class="text-left px-4 py-3">Status</th>
+              <th class="text-left px-4 py-3">Scanned</th>
+              <th class="text-left px-4 py-3">New</th>
+              <th class="text-left px-4 py-3">Updated</th>
+              <th class="text-left px-4 py-3">Deleted</th>
+              <th class="text-left px-4 py-3">Duration</th>
+              <th class="text-left px-4 py-3">Logs</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+            <tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Settings ── -->
+    <div id="page-settings" class="page p-6 max-w-2xl">
+      <h1 class="text-xl font-bold text-white mb-6">Settings</h1>
+
+      <div class="space-y-6">
+
+        <!-- Available Mount Points (read-only, driven by Portainer env vars) -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-white">Available Mount Points</h2>
+            <span class="text-xs text-gray-500">Set <code class="text-indigo-400">MOUNT_1</code>–<code class="text-indigo-400">MOUNT_5</code> and <code class="text-indigo-400">MOUNT_TRASH</code> in Portainer</span>
+          </div>
+          <div id="mounts-list" class="space-y-2">
+            <div class="text-gray-500 text-sm">Loading...</div>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">Click a configured mount to add it as a scan folder. The trash mount is set automatically as the default trash path.</p>
+        </div>
+
+        <!-- Scan Folders -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h2 class="text-sm font-semibold text-white mb-3">Scan Folders</h2>
+          <div id="scan-folders-list" class="space-y-2 mb-3"></div>
+          <div class="flex gap-2">
+            <input type="text" id="new-folder-input" placeholder="/scans/vol1" class="input-field flex-1" />
+            <button class="btn-primary" onclick="addFolder()">Add</button>
+          </div>
+        </div>
+
+        <!-- Trash Folder -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h2 class="text-sm font-semibold text-white mb-3">Trash Folder</h2>
+          <input type="text" id="trash-folder-input" class="input-field w-full" placeholder="/scans/trash" />
+          <p class="text-xs text-gray-500 mt-2">Files moved to trash are placed here in subdirectories by camera model and date.</p>
+        </div>
+
+        <!-- Daily Scan Schedule -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h2 class="text-sm font-semibold text-white mb-3">Daily Scan Schedule</h2>
+          <div class="flex items-center gap-3">
+            <input type="time" id="scan-schedule-input" class="input-field" />
+            <span class="text-xs text-gray-500">runs daily at this time</span>
+          </div>
+        </div>
+
+        <!-- Timezone -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h2 class="text-sm font-semibold text-white mb-3">Timezone</h2>
+          <input type="text" id="timezone-input" class="input-field w-full" placeholder="UTC"
+            list="tz-datalist" autocomplete="off" />
+          <datalist id="tz-datalist">
+            <option value="UTC"/>
+            <option value="America/New_York"/>
+            <option value="America/Chicago"/>
+            <option value="America/Denver"/>
+            <option value="America/Los_Angeles"/>
+            <option value="America/Toronto"/>
+            <option value="America/Vancouver"/>
+            <option value="Europe/London"/>
+            <option value="Europe/Paris"/>
+            <option value="Europe/Berlin"/>
+            <option value="Europe/Amsterdam"/>
+            <option value="Europe/Stockholm"/>
+            <option value="Europe/Madrid"/>
+            <option value="Europe/Rome"/>
+            <option value="Europe/Zurich"/>
+            <option value="Europe/Warsaw"/>
+            <option value="Europe/Helsinki"/>
+            <option value="Asia/Kolkata"/>
+            <option value="Asia/Dubai"/>
+            <option value="Asia/Singapore"/>
+            <option value="Asia/Tokyo"/>
+            <option value="Asia/Shanghai"/>
+            <option value="Asia/Seoul"/>
+            <option value="Asia/Jakarta"/>
+            <option value="Asia/Bangkok"/>
+            <option value="Asia/Karachi"/>
+            <option value="Asia/Dhaka"/>
+            <option value="Australia/Sydney"/>
+            <option value="Australia/Melbourne"/>
+            <option value="Australia/Perth"/>
+            <option value="Pacific/Auckland"/>
+            <option value="Pacific/Honolulu"/>
+          </datalist>
+          <p class="text-xs text-gray-500 mt-2">IANA timezone name — affects when the daily scan fires. Changing this takes effect immediately without a restart.</p>
+        </div>
+
+        <button class="btn-primary px-6 py-2.5" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- EXIF Modal -->
+<div id="exif-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+      <div>
+        <h3 class="font-semibold text-white text-sm">EXIF Data</h3>
+        <p id="exif-filename" class="text-xs text-gray-400 mt-0.5"></p>
+      </div>
+      <button onclick="closeExif()" class="text-gray-500 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="overflow-auto flex-1 p-4">
+      <pre id="exif-content" class="text-xs text-green-400 font-mono whitespace-pre-wrap"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- Log Modal (for history) -->
+<div id="log-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+      <h3 class="font-semibold text-white text-sm">Scan Logs</h3>
+      <button onclick="closeLogModal()" class="text-gray-500 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="overflow-auto flex-1 p-4">
+      <pre id="log-modal-content" class="text-xs text-green-400 font-mono whitespace-pre-wrap"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const state = {
+  dupPage: 1, dupTotal: 0, dupPageSize: 50,
+  filesPage: 1, filesTotal: 0, filesPageSize: 100,
+  scanRunning: false,
+  sse: null,
+};
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+function nav(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.getElementById('nav-' + page).classList.add('active');
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'duplicates') { state.dupPage = 1; loadDuplicates(); }
+  if (page === 'files') { state.filesPage = 1; loadFilters(); loadFiles(); }
+  if (page === 'history') loadHistory();
+  if (page === 'settings') loadSettings();
+}
+
+// ─── API helper ───────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  try {
+    const r = await fetch(path, {
+      headers: { 'Content-Type': 'application/json', ...opts.headers },
+      ...opts,
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || r.statusText);
+    }
+    if (opts.raw) return r;
+    return r.json();
+  } catch (e) {
+    showToast(e.message, 'error');
+    throw e;
+  }
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let _toastTimer;
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  const inner = document.getElementById('toast-inner');
+  const cls = type === 'error' ? 'bg-red-800 text-red-200' : type === 'success' ? 'bg-green-800 text-green-200' : 'bg-gray-800 text-gray-200';
+  inner.className = `px-4 py-3 rounded-xl text-sm font-medium shadow-xl ${cls}`;
+  inner.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const data = await api('/api/dashboard');
+    document.getElementById('stat-total').textContent = fmtNum(data.total_files);
+    document.getElementById('stat-dupes').textContent = fmtNum(data.duplicate_groups);
+    document.getElementById('stat-marked').textContent = fmtNum(data.marked_count);
+    document.getElementById('stat-deleted').textContent = fmtNum((data.deleted_count || 0) + (data.trash_count || 0));
+    if (data.last_scan) {
+      const ls = data.last_scan;
+      const d = ls.finished_at ? new Date(ls.finished_at) : new Date(ls.started_at);
+      document.getElementById('last-scan-time').textContent =
+        `${d.toLocaleDateString()} ${d.toLocaleTimeString()} — ${ls.scan_type} (${ls.status}) — ${fmtNum(ls.files_scanned || 0)} files, ${fmtNum(ls.files_new || 0)} new`;
+    }
+  } catch (_) {}
+}
+
+// ─── Scan controls ────────────────────────────────────────────────────────────
+async function startScan() {
+  try {
+    const result = await api('/api/scan/start', { method: 'POST', body: JSON.stringify({ scan_type: 'manual' }) });
+    showToast('Scan started', 'success');
+    startSSE();
+    setScanRunning(true);
+  } catch (e) {
+    if (e.message.includes('already running')) showToast('Scan already in progress', 'info');
+  }
+}
+
+async function startDeletedCheck() {
+  try {
+    await api('/api/scan/deleted-check', { method: 'POST' });
+    showToast('Deleted files check started', 'success');
+    startSSE();
+    setScanRunning(true);
+  } catch (e) {
+    if (e.message.includes('already running')) showToast('Scan already in progress', 'info');
+  }
+}
+
+function setScanRunning(running) {
+  state.scanRunning = running;
+  const dot = document.getElementById('scan-dot');
+  const txt = document.getElementById('scan-status-text');
+  const btnScan = document.getElementById('btn-scan-now');
+  const btnDel = document.getElementById('btn-deleted-check');
+  if (running) {
+    dot.className = 'w-2 h-2 rounded-full bg-green-400 animate-pulse';
+    txt.textContent = 'Scanning...';
+    if (btnScan) btnScan.disabled = true;
+    if (btnDel) btnDel.disabled = true;
+  } else {
+    dot.className = 'w-2 h-2 rounded-full bg-gray-600';
+    txt.textContent = 'Idle';
+    if (btnScan) btnScan.disabled = false;
+    if (btnDel) btnDel.disabled = false;
+    loadDashboard();
+  }
+}
+
+function startSSE() {
+  if (state.sse) { state.sse.close(); }
+  const logEl = document.getElementById('scan-log');
+  logEl.innerHTML = '';
+  state.sse = new EventSource('/api/scan/stream');
+  state.sse.onmessage = (e) => {
+    if (e.data === '[SCAN_COMPLETE]') {
+      state.sse.close();
+      state.sse = null;
+      setScanRunning(false);
+      appendLog('[Scan complete]', '#9ca3af');
+      return;
+    }
+    appendLog(e.data);
+  };
+  state.sse.onerror = () => {
+    state.sse.close();
+    state.sse = null;
+    setScanRunning(false);
+  };
+}
+
+function appendLog(text, color) {
+  const logEl = document.getElementById('scan-log');
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  if (color) div.style.color = color;
+  div.textContent = text;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('scan-log').innerHTML = '<div class="text-gray-600">Log cleared.</div>';
+}
+
+// Poll scan status on load
+async function pollScanStatus() {
+  try {
+    const s = await api('/api/scan/status');
+    if (s.running) {
+      setScanRunning(true);
+      if (!state.sse) startSSE();
+    }
+  } catch (_) {}
+}
+
+// ─── Duplicates ───────────────────────────────────────────────────────────────
+async function loadDuplicates() {
+  const container = document.getElementById('dup-groups-list');
+  container.innerHTML = '<div class="text-gray-500 text-sm">Loading...</div>';
+  try {
+    const data = await api(`/api/duplicates?page=${state.dupPage}&page_size=${state.dupPageSize}`);
+    state.dupTotal = data.total_groups;
+    if (!data.groups.length) {
+      container.innerHTML = '<div class="text-gray-500 text-sm py-8 text-center">No duplicate groups found. Run a scan first.</div>';
+      document.getElementById('dup-pagination').innerHTML = '';
+      return;
+    }
+    container.innerHTML = data.groups.map(renderGroupCard).join('');
+    renderPagination('dup-pagination', state.dupPage, state.dupTotal, state.dupPageSize, (p) => { state.dupPage = p; loadDuplicates(); });
+  } catch (_) {
+    container.innerHTML = '<div class="text-red-400 text-sm">Failed to load duplicate groups.</div>';
+  }
+}
+
+function renderGroupCard(g) {
+  const methodBadge = {
+    'exif_unique_id': '<span class="badge badge-green">EXIF UID</span>',
+    'shutter_datetime': '<span class="badge badge-blue">Shutter+Date</span>',
+    'md5_64k': '<span class="badge badge-gray">MD5</span>',
+  }[g.method] || '<span class="badge badge-gray">Unknown</span>';
+  const dateStr = g.date_taken ? new Date(g.date_taken).toLocaleDateString() : 'Unknown date';
+  const camera = [g.camera_make, g.camera_model].filter(Boolean).join(' ') || 'Unknown camera';
+  const totalMB = g.total_size_bytes ? (g.total_size_bytes / 1048576).toFixed(1) + ' MB total' : '';
+
+  const files = g.files.map(f => `
+    <div class="file-row-dup">
+      <div class="flex-1 min-w-0">
+        <div class="text-sm text-gray-200 truncate font-mono">${esc(f.file_name)}</div>
+        <div class="text-xs text-gray-500 truncate">${esc(f.file_path)}</div>
+      </div>
+      <div class="text-xs text-gray-500 w-20 text-right flex-shrink-0">${fmtSize(f.file_size_bytes)}</div>
+      <div class="flex items-center gap-1.5 flex-shrink-0">
+        ${f.is_marked ? '<span class="badge badge-amber">Marked</span>' : ''}
+        <button class="btn-secondary btn-sm" onclick="showExif('${f.id}','${esc(f.file_name)}')">EXIF</button>
+        <button class="btn-warn btn-sm" onclick="markFile('${f.id}', ${!f.is_marked})">${f.is_marked ? 'Unmark' : 'Mark'}</button>
+        <button class="btn-danger btn-sm" onclick="trashFile('${f.id}')">Trash</button>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="group-card">
+      <div class="px-4 py-3 flex items-center gap-3 flex-wrap">
+        <span class="text-white font-medium text-sm">${g.count} copies</span>
+        ${methodBadge}
+        <span class="text-gray-400 text-sm">${esc(camera)}</span>
+        <span class="text-gray-500 text-xs">${dateStr}</span>
+        ${totalMB ? `<span class="text-gray-500 text-xs">${totalMB}</span>` : ''}
+        <span class="text-gray-700 text-xs ml-auto font-mono">${g.duplicate_id.slice(0,12)}…</span>
+      </div>
+      ${files}
+    </div>
+  `;
+}
+
+async function markFile(id, marked) {
+  try {
+    await api(`/api/files/${id}/mark`, { method: 'POST', body: JSON.stringify({ marked }) });
+    showToast(marked ? 'Marked as duplicate' : 'Mark removed', 'success');
+    loadDuplicates();
+  } catch (_) {}
+}
+
+async function trashFile(id) {
+  if (!confirm('Move this file to the trash folder?')) return;
+  try {
+    await api(`/api/files/${id}/trash`, { method: 'POST' });
+    showToast('File moved to trash', 'success');
+    loadDuplicates();
+    loadDashboard();
+  } catch (_) {}
+}
+
+// ─── All Files ────────────────────────────────────────────────────────────────
+async function loadFilters() {
+  try {
+    const [cameras, exts] = await Promise.all([api('/api/filters/cameras'), api('/api/filters/extensions')]);
+    const camSel = document.getElementById('filter-camera');
+    camSel.innerHTML = '<option value="">All cameras</option>' + cameras.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    const extSel = document.getElementById('filter-ext');
+    extSel.innerHTML = '<option value="">All types</option>' + exts.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  } catch (_) {}
+}
+
+let _filesDebounce;
+function debounceLoadFiles() {
+  clearTimeout(_filesDebounce);
+  _filesDebounce = setTimeout(loadFiles, 350);
+}
+
+async function loadFiles() {
+  const tbody = document.getElementById('files-tbody');
+  const search = document.getElementById('filter-search').value.trim();
+  const camera = document.getElementById('filter-camera').value;
+  const ext = document.getElementById('filter-ext').value;
+  const dateFrom = document.getElementById('filter-date-from').value;
+  const dateTo = document.getElementById('filter-date-to').value;
+  const isMarked = document.getElementById('filter-marked').checked ? 'true' : null;
+  const inclDeleted = document.getElementById('filter-deleted').checked;
+
+  const params = new URLSearchParams({ page: state.filesPage, page_size: state.filesPageSize });
+  if (search) params.set('search', search);
+  if (camera) params.set('camera_model', camera);
+  if (ext) params.set('extension', ext);
+  if (dateFrom) params.set('date_from', dateFrom + 'T00:00:00');
+  if (dateTo) params.set('date_to', dateTo + 'T23:59:59');
+  if (isMarked) params.set('is_marked', 'true');
+  if (!inclDeleted) params.set('is_deleted', 'false');
+
+  tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">Loading...</td></tr>';
+  try {
+    const data = await api(`/api/files?${params}`);
+    state.filesTotal = data.total;
+    document.getElementById('files-count').textContent = `${fmtNum(data.total)} files`;
+    if (!data.files.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No files match the current filters.</td></tr>';
+      document.getElementById('files-pagination').innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = data.files.map(f => `
+      <tr class="table-row">
+        <td class="px-4 py-3">
+          <div class="text-sm text-gray-200 font-medium">${esc(f.file_name)}</div>
+          <div class="text-xs text-gray-500 max-w-xs truncate">${esc(f.file_path)}</div>
+        </td>
+        <td class="px-4 py-3 text-sm text-gray-400">${esc(f.camera_model || '—')}</td>
+        <td class="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">${f.date_taken ? new Date(f.date_taken).toLocaleDateString() : '—'}</td>
+        <td class="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">${fmtSize(f.file_size_bytes)}</td>
+        <td class="px-4 py-3">${methodBadgeSmall(f.duplicate_id_method)}</td>
+        <td class="px-4 py-3">
+          ${f.is_deleted ? '<span class="badge badge-red">Deleted</span>' : ''}
+          ${f.trash_moved ? '<span class="badge badge-amber">Trashed</span>' : ''}
+          ${f.is_marked ? '<span class="badge badge-blue">Marked</span>' : ''}
+          ${!f.is_deleted && !f.trash_moved && !f.is_marked ? '<span class="badge badge-gray">OK</span>' : ''}
+        </td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-1.5">
+            <button class="btn-secondary btn-sm" onclick="showExif('${f.id}','${esc(f.file_name)}')">EXIF</button>
+            <button class="btn-warn btn-sm" onclick="markFileThenReload('${f.id}', ${!f.is_marked})">${f.is_marked ? 'Unmark' : 'Mark'}</button>
+            ${f.is_deleted ? `<button class="btn-secondary btn-sm" onclick="undeleteFile('${f.id}')">Restore</button>` : ''}
+            ${!f.trash_moved ? `<button class="btn-danger btn-sm" onclick="trashFileThenReload('${f.id}')">Trash</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    renderPagination('files-pagination', state.filesPage, state.filesTotal, state.filesPageSize, (p) => { state.filesPage = p; loadFiles(); });
+  } catch (_) {
+    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-red-400">Failed to load files.</td></tr>';
+  }
+}
+
+async function markFileThenReload(id, marked) {
+  try {
+    await api(`/api/files/${id}/mark`, { method: 'POST', body: JSON.stringify({ marked }) });
+    loadFiles();
+  } catch (_) {}
+}
+
+async function trashFileThenReload(id) {
+  if (!confirm('Move this file to the trash folder?')) return;
+  try {
+    await api(`/api/files/${id}/trash`, { method: 'POST' });
+    showToast('File moved to trash', 'success');
+    loadFiles();
+  } catch (_) {}
+}
+
+async function undeleteFile(id) {
+  try {
+    await api(`/api/files/${id}/undelete`, { method: 'POST' });
+    showToast('File restored', 'success');
+    loadFiles();
+  } catch (_) {}
+}
+
+function clearFilters() {
+  document.getElementById('filter-search').value = '';
+  document.getElementById('filter-camera').value = '';
+  document.getElementById('filter-ext').value = '';
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  document.getElementById('filter-marked').checked = false;
+  document.getElementById('filter-deleted').checked = false;
+  state.filesPage = 1;
+  loadFiles();
+}
+
+// ─── Scan History ─────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const tbody = document.getElementById('history-tbody');
+  try {
+    const data = await api('/api/scan/history?limit=50');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">No scan history yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(r => {
+      const start = r.started_at ? new Date(r.started_at) : null;
+      const end = r.finished_at ? new Date(r.finished_at) : null;
+      const dur = start && end ? fmtDuration((end - start) / 1000) : '—';
+      const statusCls = r.status === 'completed' ? 'badge-green' : r.status === 'error' ? 'badge-red' : 'badge-blue';
+      return `<tr class="table-row">
+        <td class="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">${start ? start.toLocaleString() : '—'}</td>
+        <td class="px-4 py-3"><span class="badge badge-gray">${esc(r.scan_type)}</span></td>
+        <td class="px-4 py-3"><span class="badge ${statusCls}">${esc(r.status)}</span></td>
+        <td class="px-4 py-3 text-sm text-gray-400">${fmtNum(r.files_scanned || 0)}</td>
+        <td class="px-4 py-3 text-sm text-green-400">${fmtNum(r.files_new || 0)}</td>
+        <td class="px-4 py-3 text-sm text-blue-400">${fmtNum(r.files_updated || 0)}</td>
+        <td class="px-4 py-3 text-sm text-red-400">${fmtNum(r.files_deleted || 0)}</td>
+        <td class="px-4 py-3 text-sm text-gray-400">${dur}</td>
+        <td class="px-4 py-3"><button class="btn-secondary btn-sm" onclick="showScanLogs('${r.id}')">View</button></td>
+      </tr>`;
+    }).join('');
+  } catch (_) {
+    tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-6 text-center text-red-400">Failed to load history.</td></tr>';
+  }
+}
+
+async function showScanLogs(scanRunId) {
+  try {
+    const data = await api(`/api/scan/${scanRunId}/logs`);
+    document.getElementById('log-modal-content').textContent = (data.log_lines || []).join('\n') || 'No logs available.';
+    document.getElementById('log-modal').classList.remove('hidden');
+  } catch (_) {}
+}
+
+function closeLogModal() {
+  document.getElementById('log-modal').classList.add('hidden');
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+let _settingsData = {};
+
+async function loadSettings() {
+  try {
+    const [settings, mountsData] = await Promise.all([
+      api('/api/settings'),
+      api('/api/mounts'),
+    ]);
+    _settingsData = settings;
+    renderScanFolders(_settingsData.scan_folders || []);
+    document.getElementById('trash-folder-input').value = _settingsData.trash_folder || '/scans/trash';
+    document.getElementById('scan-schedule-input').value = _settingsData.scan_schedule || '02:30';
+    document.getElementById('timezone-input').value = _settingsData.timezone || 'UTC';
+    renderMounts(mountsData.mounts || []);
+  } catch (_) {}
+}
+
+function renderMounts(mounts) {
+  const el = document.getElementById('mounts-list');
+  if (!mounts.length) {
+    el.innerHTML = '<div class="text-gray-500 text-sm">No mount information available.</div>';
+    return;
+  }
+  el.innerHTML = mounts.map(m => {
+    const isTrash = m.is_trash;
+    const configured = m.configured;
+    const borderCls = configured
+      ? (isTrash ? 'border-amber-800' : 'border-green-800')
+      : 'border-gray-700 opacity-50';
+    const dotCls = configured
+      ? (isTrash ? 'bg-amber-400' : 'bg-green-400')
+      : 'bg-gray-600';
+    const label = isTrash ? 'Trash' : m.slot.toUpperCase();
+    const actionBtn = configured && !isTrash
+      ? `<button class="text-xs text-indigo-400 hover:text-indigo-300 font-medium whitespace-nowrap" onclick="addFolderVal('${esc(m.container_path)}')">+ Add as scan folder</button>`
+      : (configured && isTrash
+          ? `<button class="text-xs text-amber-400 hover:text-amber-300 font-medium whitespace-nowrap" onclick="setTrashFolder('${esc(m.container_path)}')">Set as trash</button>`
+          : '');
+    return `
+      <div class="flex items-center gap-3 border ${borderCls} rounded-lg px-3 py-2.5">
+        <div class="w-2 h-2 rounded-full flex-shrink-0 ${dotCls}"></div>
+        <div class="flex-shrink-0 w-14">
+          <span class="text-xs font-mono font-bold ${configured ? 'text-gray-200' : 'text-gray-500'}">${esc(label)}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs font-mono text-gray-300 truncate">${esc(m.container_path)}</div>
+          <div class="text-xs text-gray-500 truncate">← ${esc(m.host_path)}</div>
+        </div>
+        <code class="text-xs text-indigo-500 flex-shrink-0">${esc(m.env_var)}</code>
+        ${actionBtn}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderScanFolders(folders) {
+  document.getElementById('scan-folders-list').innerHTML = folders.length
+    ? folders.map((f, i) => `
+        <div class="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
+          <span class="flex-1 text-sm font-mono text-gray-300">${esc(f)}</span>
+          <button class="text-gray-500 hover:text-red-400 text-xs" onclick="removeFolder(${i})">Remove</button>
+        </div>
+      `).join('')
+    : '<div class="text-gray-500 text-sm">No scan folders configured. Add one above or click a green mount.</div>';
+}
+
+function addFolder() {
+  addFolderVal(document.getElementById('new-folder-input').value.trim());
+  document.getElementById('new-folder-input').value = '';
+}
+
+function addFolderVal(val) {
+  if (!val) return;
+  const folders = _settingsData.scan_folders || [];
+  if (!folders.includes(val)) {
+    folders.push(val);
+    _settingsData.scan_folders = folders;
+    renderScanFolders(folders);
+    showToast(`Added: ${val}`, 'success');
+  }
+}
+
+function setTrashFolder(val) {
+  document.getElementById('trash-folder-input').value = val;
+  showToast(`Trash folder set to ${val}`, 'success');
+}
+
+function removeFolder(idx) {
+  const folders = _settingsData.scan_folders || [];
+  folders.splice(idx, 1);
+  _settingsData.scan_folders = folders;
+  renderScanFolders(folders);
+}
+
+async function saveSettings() {
+  const body = {
+    scan_folders: _settingsData.scan_folders || [],
+    trash_folder: document.getElementById('trash-folder-input').value.trim(),
+    scan_schedule: document.getElementById('scan-schedule-input').value.trim(),
+    timezone: document.getElementById('timezone-input').value.trim() || 'UTC',
+  };
+  try {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify(body) });
+    showToast('Settings saved — daily scan rescheduled', 'success');
+  } catch (_) {}
+}
+
+// ─── EXIF Modal ───────────────────────────────────────────────────────────────
+async function showExif(id, filename) {
+  try {
+    const data = await api(`/api/files/${id}/exif`);
+    document.getElementById('exif-filename').textContent = filename;
+    document.getElementById('exif-content').textContent = JSON.stringify(data, null, 2);
+    document.getElementById('exif-modal').classList.remove('hidden');
+  } catch (_) {}
+}
+
+function closeExif() {
+  document.getElementById('exif-modal').classList.add('hidden');
+}
+
+// Close modals on backdrop click
+document.getElementById('exif-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeExif();
+});
+document.getElementById('log-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeLogModal();
+});
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+function renderPagination(containerId, currentPage, total, pageSize, onPage) {
+  const totalPages = Math.ceil(total / pageSize);
+  const el = document.getElementById(containerId);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  const pages = [];
+  for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) pages.push(i);
+  el.innerHTML = `
+    <button class="pagination-btn" onclick="(${onPage.toString()})(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>←</button>
+    ${pages.map(p => `<button class="pagination-btn ${p === currentPage ? 'bg-indigo-700 text-white' : ''}" onclick="(${onPage.toString()})(${p})">${p}</button>`).join('')}
+    <button class="pagination-btn" onclick="(${onPage.toString()})(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>→</button>
+    <span class="text-xs text-gray-500 ml-2">${fmtNum(total)} total</span>
+  `;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtNum(n) {
+  return typeof n === 'number' ? n.toLocaleString() : n;
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function fmtDuration(secs) {
+  if (secs < 60) return Math.round(secs) + 's';
+  if (secs < 3600) return Math.floor(secs / 60) + 'm ' + Math.round(secs % 60) + 's';
+  return Math.floor(secs / 3600) + 'h ' + Math.floor((secs % 3600) / 60) + 'm';
+}
+
+function methodBadgeSmall(method) {
+  const m = {
+    'exif_unique_id': '<span class="badge badge-green">EXIF UID</span>',
+    'shutter_datetime': '<span class="badge badge-blue">Shutter</span>',
+    'md5_64k': '<span class="badge badge-gray">MD5</span>',
+  };
+  return m[method] || '<span class="badge badge-gray">—</span>';
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadDashboard();
+pollScanStatus();
+// Refresh dashboard stats every 30s
+setInterval(loadDashboard, 30000);
+</script>
+</body>
+</html>

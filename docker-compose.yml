@@ -1,0 +1,83 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KawKaw Anti Duplicate — Portainer Stack
+#
+# Volume mount configuration (set in Portainer → Stack → Environment Variables):
+#
+#   MOUNT_1   Host path for scan volume 1   e.g. /mnt/tank/photos
+#   MOUNT_2   Host path for scan volume 2   e.g. /mnt/tank/raw
+#   MOUNT_3   Host path for scan volume 3   (leave unset or /tmp if unused)
+#   MOUNT_4   Host path for scan volume 4   (leave unset or /tmp if unused)
+#   MOUNT_5   Host path for scan volume 5   (leave unset or /tmp if unused)
+#   MOUNT_TRASH  Host path for trash folder  e.g. /mnt/tank/.kawkaw_trash
+#
+# Inside the container these are available as:
+#   /scans/vol1  /scans/vol2  /scans/vol3  /scans/vol4  /scans/vol5
+#   /scans/trash
+#
+# Configure scan folders, schedule, trash path, and timezone from the web UI
+# at http://<truenas-ip>:3681  — no other env vars needed after first boot.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: kawkaw-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kawkaw
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: kawkaw
+    volumes:
+      - kawkaw_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kawkaw -d kawkaw"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  app:
+    image: kawkaw-antiduplicate:latest
+    container_name: kawkaw-app
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3681:3681"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kawkaw:secret@db:5432/kawkaw
+      # Source volume host paths — set these in Portainer env vars
+      MOUNT_1: ${MOUNT_1:-/tmp}
+      MOUNT_2: ${MOUNT_2:-/tmp}
+      MOUNT_3: ${MOUNT_3:-/tmp}
+      MOUNT_4: ${MOUNT_4:-/tmp}
+      MOUNT_5: ${MOUNT_5:-/tmp}
+      MOUNT_TRASH: ${MOUNT_TRASH:-/tmp}
+    volumes:
+      # Persistent app settings and data
+      - kawkaw_appdata:/app/data
+      # Scan source volumes — host paths driven by env vars above
+      - ${MOUNT_1:-/tmp}:/scans/vol1:ro
+      - ${MOUNT_2:-/tmp}:/scans/vol2:ro
+      - ${MOUNT_3:-/tmp}:/scans/vol3:ro
+      - ${MOUNT_4:-/tmp}:/scans/vol4:ro
+      - ${MOUNT_5:-/tmp}:/scans/vol5:ro
+      # Trash folder — writable so the app can move files here
+      - ${MOUNT_TRASH:-/tmp}:/scans/trash
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3681/api/dashboard || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  kawkaw_pgdata:
+    driver: local
+  kawkaw_appdata:
+    driver: local

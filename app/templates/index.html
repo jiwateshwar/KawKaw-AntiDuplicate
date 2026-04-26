@@ -664,7 +664,7 @@ function renderGroupCard(g, groupNum) {
     : `<button class="btn-secondary btn-sm" onclick="ignoreGroup('${g.duplicate_id}')">Ignore</button>`;
 
   return `
-    <div class="group-card mb-6" style="border-left: 3px solid ${borderColor}; ${g.is_ignored ? 'opacity:0.6' : ''}">
+    <div class="group-card mb-6" id="grp-${g.duplicate_id}" style="border-left: 3px solid ${borderColor}; ${g.is_ignored ? 'opacity:0.6' : ''}">
       <div class="px-4 py-3 flex items-center gap-2 flex-wrap" style="background:rgba(0,0,0,0.3)">
         <span class="text-xs font-bold uppercase tracking-widest" style="color:${borderColor}">Group #${groupNum}</span>
         <span class="text-white font-semibold text-sm ml-1">${g.count} copies</span>
@@ -699,8 +699,12 @@ function toggleShowIgnored() {
 async function ignoreGroup(duplicateId) {
   try {
     await api(`/api/groups/${duplicateId}/ignore`, { method: 'POST' });
-    showToast('Group ignored — won\'t appear as duplicates', 'success');
-    loadDuplicates();
+    const card = document.getElementById(`grp-${duplicateId}`);
+    if (card) card.remove();
+    delete _groupData[duplicateId];
+    state.dupTotal = Math.max(0, state.dupTotal - 1);
+    showToast('Group ignored', 'success');
+    loadDashboard();
   } catch (_) {}
 }
 

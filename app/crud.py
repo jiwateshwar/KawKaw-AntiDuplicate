@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .database import Image, ScanRun
+from .database import IgnoredGroup, Image, ScanRun
 
 
 async def get_dashboard_stats(db: AsyncSession) -> dict:
@@ -25,6 +25,7 @@ async def get_dashboard_stats(db: AsyncSession) -> dict:
                     SELECT duplicate_id
                     FROM images
                     WHERE is_deleted = FALSE AND trash_moved = FALSE
+                      AND duplicate_id NOT IN (SELECT duplicate_id FROM ignored_groups)
                     GROUP BY duplicate_id
                     HAVING COUNT(*) >= 2
                 ) sub
@@ -60,12 +61,14 @@ async def get_dashboard_stats(db: AsyncSession) -> dict:
     }
 
 
-async def get_duplicate_groups(db: AsyncSession, page: int = 1, page_size: int = 50) -> dict:
+async def get_duplicate_groups(
+    db: AsyncSession, page: int = 1, page_size: int = 50, include_ignored: bool = False
+) -> dict:
     offset = (page - 1) * page_size
+    ign_filter = "" if include_ignored else "AND duplicate_id NOT IN (SELECT duplicate_id FROM ignored_groups)"
 
-    # Get paginated group summary
     groups_q = await db.execute(
-        text("""
+        text(f"""
             SELECT
                 duplicate_id,
                 COUNT(*) as cnt,
@@ -75,7 +78,7 @@ async def get_duplicate_groups(db: AsyncSession, page: int = 1, page_size: int =
                 MIN(duplicate_id_method) as method,
                 SUM(file_size_bytes) as total_size
             FROM images
-            WHERE is_deleted = FALSE AND trash_moved = FALSE
+            WHERE is_deleted = FALSE AND trash_moved = FALSE {ign_filter}
             GROUP BY duplicate_id
             HAVING COUNT(*) >= 2
             ORDER BY cnt DESC, MIN(date_taken) ASC NULLS LAST
@@ -86,11 +89,11 @@ async def get_duplicate_groups(db: AsyncSession, page: int = 1, page_size: int =
     group_rows = groups_q.fetchall()
 
     total_q = await db.execute(
-        text("""
+        text(f"""
             SELECT COUNT(*) FROM (
                 SELECT duplicate_id
                 FROM images
-                WHERE is_deleted = FALSE AND trash_moved = FALSE
+                WHERE is_deleted = FALSE AND trash_moved = FALSE {ign_filter}
                 GROUP BY duplicate_id
                 HAVING COUNT(*) >= 2
             ) sub
@@ -103,7 +106,13 @@ async def get_duplicate_groups(db: AsyncSession, page: int = 1, page_size: int =
 
     dup_ids = [r[0] for r in group_rows]
 
-    # Fetch full image rows for these groups
+    ignored_ids: set[str] = set()
+    if include_ignored:
+        ig_result = await db.execute(
+            select(IgnoredGroup.duplicate_id).where(IgnoredGroup.duplicate_id.in_(dup_ids))
+        )
+        ignored_ids = {row[0] for row in ig_result.fetchall()}
+
     imgs_q = await db.execute(
         select(Image).where(
             Image.duplicate_id.in_(dup_ids),
@@ -128,10 +137,27 @@ async def get_duplicate_groups(db: AsyncSession, page: int = 1, page_size: int =
             "date_taken": row[4].isoformat() if row[4] else None,
             "method": row[5],
             "total_size_bytes": row[6],
+            "is_ignored": dup_id in ignored_ids,
             "files": imgs_by_dup.get(dup_id, []),
         })
 
     return {"total_groups": total_groups, "page": page, "page_size": page_size, "groups": groups}
+
+
+async def ignore_group(db: AsyncSession, duplicate_id: str) -> dict:
+    existing = (await db.execute(
+        select(IgnoredGroup).where(IgnoredGroup.duplicate_id == duplicate_id)
+    )).scalars().first()
+    if not existing:
+        db.add(IgnoredGroup(duplicate_id=duplicate_id))
+        await db.flush()
+    return {"duplicate_id": duplicate_id, "ignored": True}
+
+
+async def unignore_group(db: AsyncSession, duplicate_id: str) -> dict:
+    await db.execute(delete(IgnoredGroup).where(IgnoredGroup.duplicate_id == duplicate_id))
+    await db.flush()
+    return {"duplicate_id": duplicate_id, "ignored": False}
 
 
 async def get_all_files(

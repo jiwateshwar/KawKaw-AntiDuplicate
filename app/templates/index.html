@@ -153,10 +153,13 @@
           <h1 class="text-xl font-bold text-white">Duplicate Groups</h1>
           <p class="text-gray-500 text-sm mt-0.5">Files with identical fingerprints</p>
         </div>
-        <a href="/api/export/duplicates.csv" class="btn-secondary" download>
-          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          Export CSV
-        </a>
+        <div class="flex gap-2">
+          <button id="btn-show-ignored" class="btn-secondary" onclick="toggleShowIgnored()">Show Ignored</button>
+          <a href="/api/export/duplicates.csv" class="btn-secondary" download>
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Export CSV
+          </a>
+        </div>
       </div>
       <div id="dup-groups-list">
         <div class="text-gray-500 text-sm">Loading...</div>
@@ -436,6 +439,7 @@ const state = {
   filesPage: 1, filesTotal: 0, filesPageSize: 100,
   scanRunning: false,
   sse: null,
+  showIgnored: false,
 };
 
 const _GROUP_COLORS = ['#f59e0b','#6366f1','#14b8a6','#a855f7','#f43f5e','#22c55e','#fb923c','#3b82f6'];
@@ -599,7 +603,7 @@ async function loadDuplicates() {
   const container = document.getElementById('dup-groups-list');
   container.innerHTML = '<div class="text-gray-500 text-sm">Loading...</div>';
   try {
-    const data = await api(`/api/duplicates?page=${state.dupPage}&page_size=${state.dupPageSize}`);
+    const data = await api(`/api/duplicates?page=${state.dupPage}&page_size=${state.dupPageSize}&include_ignored=${state.showIgnored}`);
     state.dupTotal = data.total_groups;
     if (!data.groups.length) {
       container.innerHTML = '<div class="text-gray-500 text-sm py-8 text-center">No duplicate groups found. Run a scan first.</div>';
@@ -654,21 +658,58 @@ function renderGroupCard(g, groupNum) {
     </div>
   `).join('');
 
+  const borderColor = g.is_ignored ? '#4b5563' : color;
+  const ignoreBtn = g.is_ignored
+    ? `<button class="btn-secondary btn-sm" onclick="unignoreGroup('${g.duplicate_id}')">Unignore</button>`
+    : `<button class="btn-secondary btn-sm" onclick="ignoreGroup('${g.duplicate_id}')">Ignore</button>`;
+
   return `
-    <div class="group-card mb-6" style="border-left: 3px solid ${color}">
+    <div class="group-card mb-6" style="border-left: 3px solid ${borderColor}; ${g.is_ignored ? 'opacity:0.6' : ''}">
       <div class="px-4 py-3 flex items-center gap-2 flex-wrap" style="background:rgba(0,0,0,0.3)">
-        <span class="text-xs font-bold uppercase tracking-widest" style="color:${color}">Group #${groupNum}</span>
+        <span class="text-xs font-bold uppercase tracking-widest" style="color:${borderColor}">Group #${groupNum}</span>
         <span class="text-white font-semibold text-sm ml-1">${g.count} copies</span>
         ${methodBadge}
+        ${g.is_ignored ? '<span class="badge badge-gray">Ignored</span>' : ''}
         <span class="text-gray-300 text-sm">${esc(camera)}</span>
         <span class="text-gray-500 text-xs">${dateStr}</span>
         ${totalMB ? `<span class="text-gray-500 text-xs ml-auto">${totalMB} total</span>` : ''}
         <span class="text-gray-700 text-xs font-mono ${totalMB ? '' : 'ml-auto'}">${g.duplicate_id.slice(0,12)}…</span>
+        ${ignoreBtn}
       </div>
       <div class="thumb-strip">${thumbs}</div>
       ${files}
     </div>
   `;
+}
+
+function toggleShowIgnored() {
+  state.showIgnored = !state.showIgnored;
+  const btn = document.getElementById('btn-show-ignored');
+  if (state.showIgnored) {
+    btn.textContent = 'Hide Ignored';
+    btn.classList.add('bg-indigo-800', 'text-indigo-200');
+  } else {
+    btn.textContent = 'Show Ignored';
+    btn.classList.remove('bg-indigo-800', 'text-indigo-200');
+  }
+  state.dupPage = 1;
+  loadDuplicates();
+}
+
+async function ignoreGroup(duplicateId) {
+  try {
+    await api(`/api/groups/${duplicateId}/ignore`, { method: 'POST' });
+    showToast('Group ignored — won\'t appear as duplicates', 'success');
+    loadDuplicates();
+  } catch (_) {}
+}
+
+async function unignoreGroup(duplicateId) {
+  try {
+    await api(`/api/groups/${duplicateId}/unignore`, { method: 'POST' });
+    showToast('Group restored to duplicate list', 'success');
+    loadDuplicates();
+  } catch (_) {}
 }
 
 async function markFile(id, marked) {

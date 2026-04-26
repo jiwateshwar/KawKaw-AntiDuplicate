@@ -84,6 +84,14 @@ class Image(Base):
     last_scanned: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class IgnoredGroup(Base):
+    __tablename__ = "ignored_groups"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    duplicate_id: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
+    ignored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class ScanRun(Base):
     __tablename__ = "scan_runs"
 

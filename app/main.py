@@ -26,9 +26,11 @@ from .crud import (
     get_scan_history,
     get_scan_run,
     get_scan_run_logs,
+    ignore_group,
     mark_image,
     move_to_trash,
     undelete_image,
+    unignore_group,
 )
 from .database import AsyncSessionLocal, SyncSessionLocal, create_all_tables
 from .scanner import run_scan_sync
@@ -235,9 +237,20 @@ async def api_dashboard(db: AsyncSession = Depends(get_db)):
 async def api_duplicates(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    include_ignored: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
-    return await get_duplicate_groups(db, page=page, page_size=page_size)
+    return await get_duplicate_groups(db, page=page, page_size=page_size, include_ignored=include_ignored)
+
+
+@app.post("/api/groups/{duplicate_id}/ignore")
+async def api_ignore_group(duplicate_id: str, db: AsyncSession = Depends(get_db)):
+    return await ignore_group(db, duplicate_id)
+
+
+@app.post("/api/groups/{duplicate_id}/unignore")
+async def api_unignore_group(duplicate_id: str, db: AsyncSession = Depends(get_db)):
+    return await unignore_group(db, duplicate_id)
 
 
 # ─── Files ────────────────────────────────────────────────────────────────────

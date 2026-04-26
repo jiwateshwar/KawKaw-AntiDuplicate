@@ -96,6 +96,37 @@ def _get_sync_session():
     return SyncSessionLocal()
 
 
+def _generate_thumbnail_sync(file_path: str, size: int = 300) -> bytes | None:
+    import io
+    clamped = min(max(size, 64), 1200)
+    try:
+        from PIL import Image as PILImage
+        with PILImage.open(file_path) as img:
+            img.thumbnail((clamped, clamped), PILImage.LANCZOS)
+            buf = io.BytesIO()
+            img.convert("RGB").save(buf, format="JPEG", quality=78, optimize=True)
+            return buf.getvalue()
+    except Exception:
+        pass
+    try:
+        import exifread
+        with open(file_path, "rb") as f:
+            tags = exifread.process_file(f, details=True)
+        thumb = tags.get("JPEGThumbnail")
+        if isinstance(thumb, bytes) and len(thumb) > 200:
+            if clamped < 300:
+                from PIL import Image as PILImage
+                with PILImage.open(io.BytesIO(thumb)) as img:
+                    img.thumbnail((clamped, clamped), PILImage.LANCZOS)
+                    buf = io.BytesIO()
+                    img.convert("RGB").save(buf, format="JPEG", quality=78)
+                    return buf.getvalue()
+            return thumb
+    except Exception:
+        pass
+    return None
+
+
 def _do_scan(scan_run_id: str, scan_type: str) -> None:
     global _current_scan_id
     _scan_running.set()
@@ -276,6 +307,41 @@ async def api_undelete_image(image_id: str, db: AsyncSession = Depends(get_db)):
     if result is None:
         raise HTTPException(status_code=404, detail="Image not found")
     return result
+
+
+@app.get("/api/files/{image_id}/thumbnail")
+async def api_thumbnail(
+    image_id: str,
+    size: int = Query(300, ge=64, le=1200),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import select
+    from .database import Image as DBImage
+
+    result = await db.execute(
+        select(DBImage.file_path).where(
+            DBImage.id == image_id,
+            DBImage.is_deleted == False,
+        )
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    file_path = row[0]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not on disk")
+
+    loop = asyncio.get_event_loop()
+    thumb_data = await loop.run_in_executor(None, _generate_thumbnail_sync, file_path, size)
+    if not thumb_data:
+        raise HTTPException(status_code=404, detail="Could not generate thumbnail")
+
+    return Response(
+        content=thumb_data,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @app.get("/api/filters/cameras")

@@ -40,9 +40,8 @@ services:
       start_period: 10s
 
   app:
-    image: kawkaw-antiduplicate:latest
-    container_name: kawkaw-app
     build: .
+    container_name: kawkaw-app
     restart: unless-stopped
     depends_on:
       db:

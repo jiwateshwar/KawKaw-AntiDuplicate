@@ -443,6 +443,53 @@ async def api_update_settings(body: SettingsRequest):
     return {"ok": True, "settings": _settings}
 
 
+# ─── Browse ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/browse")
+async def api_browse(path: str = Query("/scans")):
+    """
+    List subdirectories at the given path. Restricted to /scans/ for security.
+    Returns {path, parent, entries: [{name, path, entry_count}]}.
+    """
+    import pathlib
+
+    try:
+        target = pathlib.Path(path).resolve()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    scans_root = pathlib.Path("/scans").resolve()
+    if not (str(target) == str(scans_root) or str(target).startswith(str(scans_root) + "/")):
+        raise HTTPException(status_code=403, detail="Browsing outside /scans/ is not permitted")
+
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="Path does not exist")
+    if not target.is_dir():
+        raise HTTPException(status_code=400, detail="Path is not a directory")
+
+    entries = []
+    try:
+        for entry in sorted(target.iterdir(), key=lambda e: e.name.lower()):
+            if not entry.is_dir() or entry.name.startswith("."):
+                continue
+            # Count direct children for display
+            try:
+                child_count = sum(1 for c in entry.iterdir() if c.is_dir() and not c.name.startswith("."))
+            except PermissionError:
+                child_count = 0
+            entries.append({
+                "name": entry.name,
+                "path": str(entry),
+                "child_dirs": child_count,
+            })
+    except PermissionError:
+        pass
+
+    parent = str(target.parent) if str(target) != str(scans_root) else None
+
+    return {"path": str(target), "parent": parent, "entries": entries}
+
+
 # ─── Mounts ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/mounts")

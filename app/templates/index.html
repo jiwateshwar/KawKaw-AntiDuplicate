@@ -236,32 +236,28 @@
 
       <div class="space-y-6">
 
-        <!-- Available Mount Points (read-only, driven by Portainer env vars) -->
-        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold text-white">Available Mount Points</h2>
-            <span class="text-xs text-gray-500">Set <code class="text-indigo-400">MOUNT_1</code>–<code class="text-indigo-400">MOUNT_5</code> and <code class="text-indigo-400">MOUNT_TRASH</code> in Portainer</span>
-          </div>
-          <div id="mounts-list" class="space-y-2">
-            <div class="text-gray-500 text-sm">Loading...</div>
-          </div>
-          <p class="text-xs text-gray-500 mt-3">Click a configured mount to add it as a scan folder. The trash mount is set automatically as the default trash path.</p>
-        </div>
-
         <!-- Scan Folders -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 class="text-sm font-semibold text-white mb-3">Scan Folders</h2>
-          <div id="scan-folders-list" class="space-y-2 mb-3"></div>
-          <div class="flex gap-2">
-            <input type="text" id="new-folder-input" placeholder="/scans/vol1" class="input-field flex-1" />
-            <button class="btn-primary" onclick="addFolder()">Add</button>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-white">Scan Folders</h2>
+            <button class="btn-primary btn-sm flex items-center gap-1.5" onclick="openBrowser('scan')">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+              Browse &amp; Add
+            </button>
           </div>
+          <div id="scan-folders-list" class="space-y-2"></div>
         </div>
 
         <!-- Trash Folder -->
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <h2 class="text-sm font-semibold text-white mb-3">Trash Folder</h2>
-          <input type="text" id="trash-folder-input" class="input-field w-full" placeholder="/scans/trash" />
+          <div class="flex items-center gap-2">
+            <div id="trash-folder-display" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-gray-300 truncate">/scans/trash</div>
+            <button class="btn-secondary btn-sm flex items-center gap-1.5 flex-shrink-0" onclick="openBrowser('trash')">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+              Browse
+            </button>
+          </div>
           <p class="text-xs text-gray-500 mt-2">Files moved to trash are placed here in subdirectories by camera model and date.</p>
         </div>
 
@@ -337,6 +333,39 @@
     </div>
     <div class="overflow-auto flex-1 p-4">
       <pre id="exif-content" class="text-xs text-green-400 font-mono whitespace-pre-wrap"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- Folder Browser Modal -->
+<div id="browser-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg flex flex-col" style="max-height:80vh">
+    <div class="px-5 py-4 border-b border-gray-800 flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 class="font-semibold text-white text-sm" id="browser-title">Select Folder</h3>
+        <!-- Breadcrumb -->
+        <div id="browser-breadcrumb" class="flex items-center flex-wrap gap-1 mt-1.5"></div>
+      </div>
+      <button onclick="closeBrowser()" class="text-gray-500 hover:text-white flex-shrink-0 mt-0.5">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <!-- Directory listing -->
+    <div id="browser-body" class="overflow-y-auto flex-1">
+      <div id="browser-list" class="p-2 space-y-0.5"></div>
+    </div>
+    <!-- Footer -->
+    <div class="px-5 py-3 border-t border-gray-800 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="text-xs text-gray-500">Current:</div>
+        <div id="browser-current-path" class="text-xs font-mono text-gray-300 truncate"></div>
+      </div>
+      <div class="flex gap-2 flex-shrink-0">
+        <button class="btn-secondary btn-sm" onclick="closeBrowser()">Cancel</button>
+        <button id="browser-select-btn" class="btn-primary btn-sm" onclick="browserSelect()">
+          Select This Folder
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -754,103 +783,53 @@ function closeLogModal() {
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 let _settingsData = {};
+let _trashFolder = '/scans/trash';
 
 async function loadSettings() {
   try {
-    const [settings, mountsData] = await Promise.all([
-      api('/api/settings'),
-      api('/api/mounts'),
-    ]);
-    _settingsData = settings;
+    _settingsData = await api('/api/settings');
+    _trashFolder = _settingsData.trash_folder || '/scans/trash';
     renderScanFolders(_settingsData.scan_folders || []);
-    document.getElementById('trash-folder-input').value = _settingsData.trash_folder || '/scans/trash';
+    document.getElementById('trash-folder-display').textContent = _trashFolder;
     document.getElementById('scan-schedule-input').value = _settingsData.scan_schedule || '02:30';
     document.getElementById('timezone-input').value = _settingsData.timezone || 'UTC';
-    renderMounts(mountsData.mounts || []);
   } catch (_) {}
 }
 
-function renderMounts(mounts) {
-  const el = document.getElementById('mounts-list');
-  if (!mounts.length) {
-    el.innerHTML = '<div class="text-gray-500 text-sm">No mount information available.</div>';
-    return;
-  }
-  el.innerHTML = mounts.map(m => {
-    const isTrash = m.is_trash;
-    const configured = m.configured;
-    const borderCls = configured
-      ? (isTrash ? 'border-amber-800' : 'border-green-800')
-      : 'border-gray-700 opacity-50';
-    const dotCls = configured
-      ? (isTrash ? 'bg-amber-400' : 'bg-green-400')
-      : 'bg-gray-600';
-    const label = isTrash ? 'Trash' : m.slot.toUpperCase();
-    const actionBtn = configured && !isTrash
-      ? `<button class="text-xs text-indigo-400 hover:text-indigo-300 font-medium whitespace-nowrap" onclick="addFolderVal('${esc(m.container_path)}')">+ Add as scan folder</button>`
-      : (configured && isTrash
-          ? `<button class="text-xs text-amber-400 hover:text-amber-300 font-medium whitespace-nowrap" onclick="setTrashFolder('${esc(m.container_path)}')">Set as trash</button>`
-          : '');
-    return `
-      <div class="flex items-center gap-3 border ${borderCls} rounded-lg px-3 py-2.5">
-        <div class="w-2 h-2 rounded-full flex-shrink-0 ${dotCls}"></div>
-        <div class="flex-shrink-0 w-14">
-          <span class="text-xs font-mono font-bold ${configured ? 'text-gray-200' : 'text-gray-500'}">${esc(label)}</span>
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="text-xs font-mono text-gray-300 truncate">${esc(m.container_path)}</div>
-          <div class="text-xs text-gray-500 truncate">← ${esc(m.host_path)}</div>
-        </div>
-        <code class="text-xs text-indigo-500 flex-shrink-0">${esc(m.env_var)}</code>
-        ${actionBtn}
-      </div>
-    `;
-  }).join('');
-}
-
 function renderScanFolders(folders) {
-  document.getElementById('scan-folders-list').innerHTML = folders.length
+  const el = document.getElementById('scan-folders-list');
+  el.innerHTML = folders.length
     ? folders.map((f, i) => `
-        <div class="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
-          <span class="flex-1 text-sm font-mono text-gray-300">${esc(f)}</span>
-          <button class="text-gray-500 hover:text-red-400 text-xs" onclick="removeFolder(${i})">Remove</button>
+        <div class="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2.5">
+          <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+          <span class="flex-1 text-sm font-mono text-gray-300 truncate">${esc(f)}</span>
+          <button class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 rounded hover:bg-red-900/30 transition-colors" onclick="removeFolder(${i})">Remove</button>
         </div>
       `).join('')
-    : '<div class="text-gray-500 text-sm">No scan folders configured. Add one above or click a green mount.</div>';
-}
-
-function addFolder() {
-  addFolderVal(document.getElementById('new-folder-input').value.trim());
-  document.getElementById('new-folder-input').value = '';
+    : '<div class="text-gray-500 text-sm py-2">No scan folders yet — click Browse &amp; Add to pick one.</div>';
 }
 
 function addFolderVal(val) {
   if (!val) return;
-  const folders = _settingsData.scan_folders || [];
-  if (!folders.includes(val)) {
-    folders.push(val);
-    _settingsData.scan_folders = folders;
-    renderScanFolders(folders);
+  if (!_settingsData.scan_folders) _settingsData.scan_folders = [];
+  if (!_settingsData.scan_folders.includes(val)) {
+    _settingsData.scan_folders.push(val);
+    renderScanFolders(_settingsData.scan_folders);
     showToast(`Added: ${val}`, 'success');
+  } else {
+    showToast('Folder already in list', 'info');
   }
 }
 
-function setTrashFolder(val) {
-  document.getElementById('trash-folder-input').value = val;
-  showToast(`Trash folder set to ${val}`, 'success');
-}
-
 function removeFolder(idx) {
-  const folders = _settingsData.scan_folders || [];
-  folders.splice(idx, 1);
-  _settingsData.scan_folders = folders;
-  renderScanFolders(folders);
+  _settingsData.scan_folders.splice(idx, 1);
+  renderScanFolders(_settingsData.scan_folders);
 }
 
 async function saveSettings() {
   const body = {
     scan_folders: _settingsData.scan_folders || [],
-    trash_folder: document.getElementById('trash-folder-input').value.trim(),
+    trash_folder: _trashFolder,
     scan_schedule: document.getElementById('scan-schedule-input').value.trim(),
     timezone: document.getElementById('timezone-input').value.trim() || 'UTC',
   };
@@ -859,6 +838,112 @@ async function saveSettings() {
     showToast('Settings saved — daily scan rescheduled', 'success');
   } catch (_) {}
 }
+
+// ─── Folder Browser ───────────────────────────────────────────────────────────
+const _browser = { mode: 'scan', path: '/scans' };
+
+async function openBrowser(mode) {
+  _browser.mode = mode;
+  document.getElementById('browser-title').textContent =
+    mode === 'trash' ? 'Select Trash Folder' : 'Select Scan Folder';
+  document.getElementById('browser-select-btn').textContent =
+    mode === 'trash' ? 'Set as Trash Folder' : 'Add as Scan Folder';
+  document.getElementById('browser-modal').classList.remove('hidden');
+  await browseTo('/scans');
+}
+
+function closeBrowser() {
+  document.getElementById('browser-modal').classList.add('hidden');
+}
+
+async function browseTo(path) {
+  _browser.path = path;
+  document.getElementById('browser-current-path').textContent = path;
+  document.getElementById('browser-list').innerHTML =
+    '<div class="p-4 text-gray-500 text-sm">Loading...</div>';
+
+  // Build breadcrumb: /scans / vol1 / Subfolder
+  const parts = path.replace(/^\/scans\/?/, '').split('/').filter(Boolean);
+  const crumbs = [{ label: 'Mounts', path: '/scans' }];
+  let built = '/scans';
+  for (const p of parts) {
+    built += '/' + p;
+    crumbs.push({ label: p, path: built });
+  }
+  document.getElementById('browser-breadcrumb').innerHTML = crumbs.map((c, i) => {
+    const isLast = i === crumbs.length - 1;
+    return [
+      i > 0 ? '<span class="text-gray-600">/</span>' : '',
+      isLast
+        ? `<span class="text-xs font-mono text-white">${esc(c.label)}</span>`
+        : `<button class="text-xs font-mono text-indigo-400 hover:text-indigo-300" onclick="browseTo('${esc(c.path)}')">${esc(c.label)}</button>`,
+    ].join('');
+  }).join('');
+
+  try {
+    const data = await api(`/api/browse?path=${encodeURIComponent(path)}`);
+    const list = document.getElementById('browser-list');
+
+    if (!data.entries.length && !data.parent) {
+      list.innerHTML = '<div class="p-4 text-gray-500 text-sm">No subfolders found.</div>';
+      return;
+    }
+
+    const rows = [];
+
+    // ".." row — go up (but not above /scans root)
+    if (data.parent) {
+      rows.push(`
+        <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-left"
+                onclick="browseTo('${esc(data.parent)}')">
+          <svg class="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10l9-9 9 9M5 8v11a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1V8"/></svg>
+          <span class="text-sm text-gray-400 font-mono">..</span>
+          <span class="text-xs text-gray-600 ml-auto">up</span>
+        </button>
+      `);
+    }
+
+    for (const entry of data.entries) {
+      const childHint = entry.child_dirs > 0
+        ? `<span class="text-xs text-gray-600 ml-auto flex-shrink-0">${entry.child_dirs} subfolder${entry.child_dirs !== 1 ? 's' : ''}</span>`
+        : '<span class="text-xs text-gray-700 ml-auto flex-shrink-0">empty</span>';
+      rows.push(`
+        <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-left group"
+                onclick="browseTo('${esc(entry.path)}')">
+          <svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+          <span class="text-sm text-gray-200 font-mono truncate group-hover:text-white">${esc(entry.name)}</span>
+          ${childHint}
+        </button>
+      `);
+    }
+
+    if (!rows.length) {
+      list.innerHTML = '<div class="p-4 text-gray-500 text-sm">No subfolders in this directory.</div>';
+    } else {
+      list.innerHTML = rows.join('');
+    }
+  } catch (e) {
+    document.getElementById('browser-list').innerHTML =
+      `<div class="p-4 text-red-400 text-sm">Could not load directory: ${esc(e.message)}</div>`;
+  }
+}
+
+function browserSelect() {
+  const path = _browser.path;
+  if (_browser.mode === 'trash') {
+    _trashFolder = path;
+    document.getElementById('trash-folder-display').textContent = path;
+    showToast(`Trash folder set to ${path}`, 'success');
+  } else {
+    addFolderVal(path);
+  }
+  closeBrowser();
+}
+
+// Close browser on backdrop click
+document.getElementById('browser-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeBrowser();
+});
 
 // ─── EXIF Modal ───────────────────────────────────────────────────────────────
 async function showExif(id, filename) {

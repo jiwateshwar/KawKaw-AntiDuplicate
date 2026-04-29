@@ -353,9 +353,8 @@ async def export_duplicates_csv(db: AsyncSession) -> str:
 async def mark_folder_deleted(db: AsyncSession, folder_prefix: str) -> int:
     prefix = folder_prefix.rstrip("/") + "/"
     result = await db.execute(
-        update(Image)
-        .where(Image.file_path.like(prefix + "%"), Image.is_deleted == False)
-        .values(is_deleted=True)
+        text("UPDATE images SET is_deleted = TRUE WHERE file_path LIKE :pat AND is_deleted = FALSE"),
+        {"pat": prefix + "%"},
     )
     await db.flush()
     return result.rowcount

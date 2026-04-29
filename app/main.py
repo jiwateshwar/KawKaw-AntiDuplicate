@@ -141,8 +141,8 @@ def _generate_thumbnail_sync(file_path: str, size: int = 300) -> bytes | None:
     # General path: Pillow handles JPEG, PNG, HEIC, TIFF, etc.
     try:
         return _pil_thumbnail(file_path, clamped)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"PIL thumbnail failed for {file_path!r}: {type(e).__name__}: {e}")
 
     # Last resort: exifread embedded JPEG (small, but better than nothing)
     try:

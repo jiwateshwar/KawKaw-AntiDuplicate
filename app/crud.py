@@ -350,6 +350,17 @@ async def export_duplicates_csv(db: AsyncSession) -> str:
     return output.getvalue()
 
 
+async def mark_folder_deleted(db: AsyncSession, folder_prefix: str) -> int:
+    prefix = folder_prefix.rstrip("/") + "/"
+    result = await db.execute(
+        update(Image)
+        .where(Image.file_path.like(prefix + "%"), Image.is_deleted == False)
+        .values(is_deleted=True)
+    )
+    await db.flush()
+    return result.rowcount
+
+
 async def get_camera_models(db: AsyncSession) -> list[str]:
     result = await db.execute(
         select(Image.camera_model).distinct().where(Image.camera_model.isnot(None)).order_by(Image.camera_model)

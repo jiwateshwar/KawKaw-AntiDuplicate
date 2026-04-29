@@ -27,6 +27,7 @@ from .crud import (
     get_scan_run,
     get_scan_run_logs,
     ignore_group,
+    mark_folder_deleted,
     mark_image,
     move_to_trash,
     undelete_image,
@@ -504,19 +505,25 @@ class SettingsRequest(BaseModel):
 
 
 @app.post("/api/settings")
-async def api_update_settings(body: SettingsRequest):
+async def api_update_settings(body: SettingsRequest, db: AsyncSession = Depends(get_db)):
     global _settings
+    removed_folders: list[str] = []
     if body.scan_folders is not None:
-        _settings["scan_folders"] = [f.strip() for f in body.scan_folders if f.strip()]
+        old_folders = set(_settings.get("scan_folders", []))
+        new_folders = {f.strip() for f in body.scan_folders if f.strip()}
+        removed_folders = [f for f in old_folders if f not in new_folders]
+        _settings["scan_folders"] = list(new_folders)
     if body.trash_folder is not None:
         _settings["trash_folder"] = body.trash_folder.strip()
     if body.timezone is not None:
         _settings["timezone"] = body.timezone.strip() or "UTC"
     if body.scan_schedule is not None:
         _settings["scan_schedule"] = body.scan_schedule.strip()
-    # Reschedule whenever schedule or timezone changes
     if body.scan_schedule is not None or body.timezone is not None:
         reschedule_job(_settings["scan_schedule"], _scheduled_scan_job, tz=_settings.get("timezone", "UTC"))
+
+    for folder in removed_folders:
+        await mark_folder_deleted(db, folder)
 
     _save_settings(_settings)
     return {"ok": True, "settings": _settings}

@@ -61,11 +61,11 @@ services:
       # Persistent app settings and data
       - kawkaw_appdata:/app/data
       # Scan source volumes — host paths driven by env vars above
-      - ${MOUNT_1:-/tmp}:/scans/vol1:ro
-      - ${MOUNT_2:-/tmp}:/scans/vol2:ro
-      - ${MOUNT_3:-/tmp}:/scans/vol3:ro
-      - ${MOUNT_4:-/tmp}:/scans/vol4:ro
-      - ${MOUNT_5:-/tmp}:/scans/vol5:ro
+      - ${MOUNT_1:-/tmp}:/scans/vol1
+      - ${MOUNT_2:-/tmp}:/scans/vol2
+      - ${MOUNT_3:-/tmp}:/scans/vol3
+      - ${MOUNT_4:-/tmp}:/scans/vol4
+      - ${MOUNT_5:-/tmp}:/scans/vol5
       # Trash folder — writable so the app can move files here
       - ${MOUNT_TRASH:-/tmp}:/scans/trash
     healthcheck:

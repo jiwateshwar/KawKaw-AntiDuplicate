@@ -3,6 +3,7 @@ FROM python:3.12-slim
 # System deps: libheif for HEIC/HEIF support, curl for healthcheck, psycopg2 for sync DB access
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libheif-dev \
+    libraw-dev \
     libpq-dev \
     gcc \
     curl \

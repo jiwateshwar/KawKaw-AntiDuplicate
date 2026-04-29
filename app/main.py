@@ -99,34 +99,62 @@ def _get_sync_session():
     return SyncSessionLocal()
 
 
+_RAW_EXTENSIONS = {'.nef', '.arw', '.cr2', '.cr3', '.dng', '.raf', '.orf', '.rw2', '.pef', '.srw', '.x3f', '.3fr', '.rwl'}
+
+
+def _pil_thumbnail(data: bytes | str, clamped: int) -> bytes | None:
+    import io
+    from PIL import Image as PILImage
+    PILImage.MAX_IMAGE_PIXELS = None  # local files only — no decompression bomb risk
+    src = io.BytesIO(data) if isinstance(data, bytes) else data
+    with PILImage.open(src) as img:
+        img.thumbnail((clamped, clamped), PILImage.LANCZOS)
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=82, optimize=True)
+        return buf.getvalue()
+
+
 def _generate_thumbnail_sync(file_path: str, size: int = 300) -> bytes | None:
     import io
     clamped = min(max(size, 64), 1200)
+    ext = os.path.splitext(file_path)[1].lower()
+
+    # RAW formats: use rawpy to extract the full embedded JPEG preview
+    if ext in _RAW_EXTENSIONS:
+        try:
+            import rawpy
+            with rawpy.imread(file_path) as raw:
+                thumb = raw.extract_thumb()
+                if thumb.format == rawpy.ThumbFormat.JPEG:
+                    return _pil_thumbnail(thumb.data, clamped)
+                if thumb.format == rawpy.ThumbFormat.BITMAP:
+                    from PIL import Image as PILImage
+                    import io
+                    img = PILImage.fromarray(thumb.data)
+                    img.thumbnail((clamped, clamped), PILImage.LANCZOS)
+                    buf = io.BytesIO()
+                    img.convert("RGB").save(buf, format="JPEG", quality=82, optimize=True)
+                    return buf.getvalue()
+        except Exception:
+            pass
+
+    # General path: Pillow handles JPEG, PNG, HEIC, TIFF, etc.
     try:
-        from PIL import Image as PILImage
-        with PILImage.open(file_path) as img:
-            img.thumbnail((clamped, clamped), PILImage.LANCZOS)
-            buf = io.BytesIO()
-            img.convert("RGB").save(buf, format="JPEG", quality=78, optimize=True)
-            return buf.getvalue()
+        return _pil_thumbnail(file_path, clamped)
     except Exception:
         pass
+
+    # Last resort: exifread embedded JPEG (small, but better than nothing)
     try:
         import exifread
         with open(file_path, "rb") as f:
             tags = exifread.process_file(f, details=True)
         thumb = tags.get("JPEGThumbnail")
         if isinstance(thumb, bytes) and len(thumb) > 200:
-            if clamped < 300:
-                from PIL import Image as PILImage
-                with PILImage.open(io.BytesIO(thumb)) as img:
-                    img.thumbnail((clamped, clamped), PILImage.LANCZOS)
-                    buf = io.BytesIO()
-                    img.convert("RGB").save(buf, format="JPEG", quality=78)
-                    return buf.getvalue()
-            return thumb
+            return _pil_thumbnail(thumb, clamped)
     except Exception:
         pass
+
     return None
 
 

@@ -631,32 +631,6 @@ function renderGroupCard(g, groupNum) {
   const camera = [g.camera_make, g.camera_model].filter(Boolean).join(' ') || 'Unknown camera';
   const totalMB = g.total_size_bytes ? (g.total_size_bytes / 1048576).toFixed(1) + ' MB' : '';
 
-  const thumbs = g.files.map((f, fi) => `
-    <div class="thumb-item" onclick="openViewer('${g.duplicate_id}', ${fi})" title="${esc(f.file_name)}">
-      <img src="/api/files/${f.id}/thumbnail" loading="lazy"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
-      <div class="thumb-no-img" style="display:none">
-        <svg class="w-5 h-5" fill="none" stroke="#4b5563" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        <span style="font-size:10px;color:#4b5563;font-family:monospace">${esc((f.file_extension || '').toUpperCase())}</span>
-      </div>
-    </div>
-  `).join('');
-
-  const files = g.files.map(f => `
-    <div class="file-row-dup">
-      <div class="flex-1 min-w-0">
-        <div class="text-sm text-gray-200 truncate font-mono">${esc(f.file_name)}</div>
-        <div class="text-xs text-gray-500 truncate">${esc(f.file_path)}</div>
-      </div>
-      <div class="flex items-center gap-1 flex-shrink-0">
-        <span class="text-xs text-gray-500 w-16 text-right">${fmtSize(f.file_size_bytes)}</span>
-        ${f.is_marked ? '<span class="badge badge-amber ml-1">Marked</span>' : ''}
-        <button class="btn-secondary btn-sm ml-1" onclick="showExif('${f.id}','${esc(f.file_name)}')">EXIF</button>
-        <button class="btn-warn btn-sm" onclick="markFile('${f.id}', ${!f.is_marked})">${f.is_marked ? 'Unmark' : 'Mark'}</button>
-        <button class="btn-danger btn-sm" onclick="trashFile('${f.id}')">Trash</button>
-      </div>
-    </div>
-  `).join('');
 
   const borderColor = g.is_ignored ? '#4b5563' : color;
   const ignoreBtn = g.is_ignored
@@ -676,8 +650,8 @@ function renderGroupCard(g, groupNum) {
         <span class="text-gray-700 text-xs font-mono ${totalMB ? '' : 'ml-auto'}">${g.duplicate_id.slice(0,12)}…</span>
         ${ignoreBtn}
       </div>
-      <div class="thumb-strip">${thumbs}</div>
-      ${files}
+      <div class="thumb-strip" id="thumbstrip-${g.duplicate_id}">${_thumbsHTML(g.duplicate_id)}</div>
+      <div id="filelist-${g.duplicate_id}">${_filesHTML(g.duplicate_id)}</div>
     </div>
   `;
 }
@@ -724,13 +698,61 @@ async function markFile(id, marked) {
   } catch (_) {}
 }
 
-async function trashFile(id) {
+function _thumbsHTML(groupId) {
+  return (_groupData[groupId] || []).map((f, fi) => `
+    <div class="thumb-item" onclick="openViewer('${groupId}', ${fi})" title="${esc(f.file_name)}">
+      <img src="/api/files/${f.id}/thumbnail" loading="lazy"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+      <div class="thumb-no-img" style="display:none">
+        <svg class="w-5 h-5" fill="none" stroke="#4b5563" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span style="font-size:10px;color:#4b5563;font-family:monospace">${esc((f.file_extension || '').toUpperCase())}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function _filesHTML(groupId) {
+  return (_groupData[groupId] || []).map(f => `
+    <div class="file-row-dup">
+      <div class="flex-1 min-w-0">
+        <div class="text-sm text-gray-200 truncate font-mono">${esc(f.file_name)}</div>
+        <div class="text-xs text-gray-500 truncate">${esc(f.file_path)}</div>
+      </div>
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <span class="text-xs text-gray-500 w-16 text-right">${fmtSize(f.file_size_bytes)}</span>
+        ${f.is_marked ? '<span class="badge badge-amber ml-1">Marked</span>' : ''}
+        <button class="btn-secondary btn-sm ml-1" onclick="showExif('${f.id}','${esc(f.file_name)}')">EXIF</button>
+        <button class="btn-warn btn-sm" onclick="markFile('${f.id}', ${!f.is_marked})">${f.is_marked ? 'Unmark' : 'Mark'}</button>
+        <button class="btn-danger btn-sm" onclick="trashFile('${f.id}','${groupId}')">Trash</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function _afterTrash(groupId, fileId) {
+  const files = _groupData[groupId];
+  if (!files) return;
+  const idx = files.findIndex(f => f.id === fileId);
+  if (idx !== -1) files.splice(idx, 1);
+  if (files.length < 2) {
+    const card = document.getElementById('grp-' + groupId);
+    if (card) card.remove();
+    delete _groupData[groupId];
+  } else {
+    const ts = document.getElementById('thumbstrip-' + groupId);
+    if (ts) ts.innerHTML = _thumbsHTML(groupId);
+    const fl = document.getElementById('filelist-' + groupId);
+    if (fl) fl.innerHTML = _filesHTML(groupId);
+  }
+  loadDashboard();
+}
+
+async function trashFile(id, groupId) {
   if (!confirm('Move this file to the trash folder?')) return;
   try {
     await api(`/api/files/${id}/trash`, { method: 'POST' });
     showToast('File moved to trash', 'success');
-    loadDuplicates();
-    loadDashboard();
+    _afterTrash(groupId, id);
   } catch (_) {}
 }
 
@@ -798,11 +820,11 @@ async function viewerTrash() {
   try {
     await api(`/api/files/${f.id}/trash`, { method: 'POST' });
     showToast('File moved to trash', 'success');
-    files.splice(_viewer.idx, 1);
-    if (files.length === 0) { closeViewer(); loadDuplicates(); return; }
-    if (_viewer.idx >= files.length) _viewer.idx = files.length - 1;
+    _afterTrash(_viewer.groupId, f.id);
+    const remaining = _groupData[_viewer.groupId];
+    if (!remaining || remaining.length === 0) { closeViewer(); return; }
+    if (_viewer.idx >= remaining.length) _viewer.idx = remaining.length - 1;
     _renderViewer();
-    loadDuplicates();
   } catch (_) {}
 }
 
